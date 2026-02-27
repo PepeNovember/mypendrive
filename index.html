@@ -597,42 +597,58 @@ async function doLogin() {
 
 // CADASTRO — nick + senha + e-mail obrigatório (só para recuperar senha)
 async function doSignup() {
-  const nick  = v('su-nick').toLowerCase().trim()
-  const pass  = v('su-pass')
-  const email = v('su-email')
-  const ok    = document.getElementById('tcb').checked
+  if (window.__suBusy) return;          // TRAVA anti spam
+  window.__suBusy = true;
 
-  if (!nick || !pass || !email) { toast('Preencha todos os campos.', 'err'); return }
-  if (!/^[a-z0-9_]+$/.test(nick)) { toast('Nick só pode ter letras, números e _.', 'err'); return }
-  if (pass.length < 6) { toast('Senha mínima: 6 caracteres.', 'err'); return }
-  if (!email.includes('@')) { toast('E-mail inválido.', 'err'); return }
-  if (!ok) { toast('Aceite os termos para continuar.', 'err'); return }
+  setBtnLoading('su-btn', true);
 
-  setBtnLoading('su-btn', true)
+  try {
+    const nick  = v('su-nick').toLowerCase().trim();
+    const pass  = v('su-pass');
+    const email = v('su-email');
+    const ok    = document.getElementById('tcb').checked;
 
-  const { data: existing } = await supa.from('profiles').select('nick').eq('nick', nick).maybeSingle()
-  if (existing) { toast('Esse nick já está em uso. Escolha outro.', 'err'); setBtnLoading('su-btn', false); return }
+    if (!nick || !pass || !email) { toast('Preencha todos os campos.', 'err'); return; }
+    if (!/^[a-z0-9_]+$/.test(nick)) { toast('Nick só pode ter letras, números e _.', 'err'); return; }
+    if (pass.length < 6) { toast('Senha mínima: 6 caracteres.', 'err'); return; }
+    if (!email.includes('@')) { toast('E-mail inválido.', 'err'); return; }
+    if (!ok) { toast('Aceite os termos para continuar.', 'err'); return; }
 
-  const { data, error } = await supa.auth.signUp({
-    email: email,
-    password: pass,
-    options: { data: { nick } }
-  })
+    const { data: existing } = await supa
+      .from('profiles')
+      .select('nick')
+      .eq('nick', nick)
+      .maybeSingle();
 
-  if (error) {
-    toast(error.message.includes('already registered') ? 'Esse e-mail já tem uma conta.' : 'Erro: ' + error.message, 'err')
-    setBtnLoading('su-btn', false)
-    return
+    if (existing) { toast('Esse nick já está em uso. Escolha outro.', 'err'); return; }
+
+    const { data, error } = await supa.auth.signUp({
+      email,
+      password: pass,
+      options: { data: { nick } }
+    });
+
+    if (error) {
+      toast(
+        (error.message || '').toLowerCase().includes('already registered')
+          ? 'Esse e-mail já tem uma conta.'
+          : 'Erro: ' + error.message,
+        'err'
+      );
+      return;
+    }
+
+    if (data.user) {
+      await supa.from('profiles').upsert({ id: data.user.id, nick, email });
+      await enterDashboard(data.user);
+    } else {
+      toast('Verifique seu e-mail para confirmar a conta.', 'ok');
+      go('login');
+    }
+  } finally {
+    window.__suBusy = false;            // DESTRAVA
+    setBtnLoading('su-btn', false);     // SEMPRE volta o botão
   }
-
-  if (data.user) {
-    await supa.from('profiles').upsert({ id: data.user.id, nick, email })
-    await enterDashboard(data.user)
-  } else {
-    toast('Verifique seu e-mail para confirmar a conta.', 'ok')
-    go('login')
-  }
-  setBtnLoading('su-btn', false)
 }
 
 async function doLogout() {
