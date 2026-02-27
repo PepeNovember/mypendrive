@@ -532,7 +532,7 @@ body {
     <p class="sub">Sem conta? <a onclick="go('signup')">Criar agora</a></p>
     <div class="field">
       <label>E-mail</label>
-      <input type="email" id="li-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="nome" id="li-nome" placeholder="seu@nome.com" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <div class="field">
       <label>Senha</label>
@@ -557,7 +557,7 @@ body {
     </div>
     <div class="field">
       <label>E-mail</label>
-      <input type="email" id="su-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doSignup()">
+      <input type="nome" id="su-nome" placeholder="seu@nome.com" onkeydown="if(event.key==='Enter')doSignup()">
     </div>
     <div class="field">
       <label>Senha</label>
@@ -663,19 +663,19 @@ function toast(msg, type='') {
 
 // ─── AUTH ─────────────────────────────────────────────
 function doLogin() {
-  const e = v('li-email'), p = v('li-pass');
+  const e = v('li-nome'), p = v('li-pass');
   if (!e||!p) { toast('Preencha todos os campos.','err'); return; }
   if (!e.includes('@')) { toast('E-mail inválido.','err'); return; }
-  startSession({ name: cap(e.split('@')[0]), email: e });
+  startSession({ name: cap(e.split('@')[0]), nome: e });
 }
 function doSignup() {
-  const n = v('su-name'), e = v('su-email'), p = v('su-pass');
+  const n = v('su-name'), e = v('su-nome'), p = v('su-pass');
   const ok = document.getElementById('tcb').checked;
   if (!n||!e||!p) { toast('Preencha todos os campos.','err'); return; }
   if (!e.includes('@')) { toast('E-mail inválido.','err'); return; }
   if (p.length < 6) { toast('Senha mínima: 6 caracteres.','err'); return; }
   if (!ok) { toast('Aceite os termos para continuar.','err'); return; }
-  startSession({ name: n, email: e });
+  startSession({ name: n, nome: e });
 }
 function startSession(u) {
   user = u; path = [];
