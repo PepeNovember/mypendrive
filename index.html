@@ -578,7 +578,7 @@ async function doLogin() {
   if (!nick || !pass) { toast('Preencha nick e senha.', 'err'); return }
 
   setBtnLoading('li-btn', true)
-  const fakeEmail = nick + '@mypendrive.local'
+  const fakeEmail = nick + '@user.mypendrive.com'
   const { data, error } = await supa.auth.signInWithPassword({ email: fakeEmail, password: pass })
 
   if (error) {
