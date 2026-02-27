@@ -661,14 +661,14 @@ function toast(msg, type='') {
 function doLogin() {
   const e = v('li-nome'), p = v('li-pass');
   if (!e||!p) { toast('Preencha todos os campos.','err'); return; }
-  if (!e.includes('@')) { toast('E-mail inválido.','err'); return; }
+  if (!e.includes('@')) { toast('Login inválido.','err'); return; }
   startSession({ name: cap(e.split('@')[0]), nome: e });
 }
 function doSignup() {
   const n = v('su-name'), e = v('su-nome'), p = v('su-pass');
   const ok = document.getElementById('tcb').checked;
   if (!n||!e||!p) { toast('Preencha todos os campos.','err'); return; }
-  if (!e.includes('@')) { toast('E-mail inválido.','err'); return; }
+  if (!e.includes('@')) { toast('Login inválido.','err'); return; }
   if (p.length < 6) { toast('Senha mínima: 6 caracteres.','err'); return; }
   if (!ok) { toast('Aceite os termos para continuar.','err'); return; }
   startSession({ name: n, nome: e });
