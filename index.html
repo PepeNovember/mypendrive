@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyPendrive — Seus arquivos, em qualquer lugar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Lora:ital,wght@0,400;1,300&display=swap" rel="stylesheet">
+
+<!-- ============================================================
+  SUPABASE — COLE SUAS CHAVES AQUI (únicas duas linhas pra editar)
+  Linha 1: substitua COLE_SUA_URL_AQUI pela sua Project URL
+  Linha 2: substitua COLE_SUA_CHAVE_AQUI pela sua anon/public key
+  Exemplo:
+    const SUPA_URL = 'https://abcxyz.supabase.co'
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+============================================================ -->
+<script>
+  const SUPA_URL = 'COLE_SUA_URL_AQUI'
+  const SUPA_KEY = 'COLE_SUA_CHAVE_AQUI'
+</script>
+<!-- ============================================================ -->
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0D0D0D; --surface:#161616; --surface2:#1E1E1E;
+  --border:rgba(255,255,255,0.07); --bh:rgba(255,255,255,0.18);
+  --text:#F0EDE8; --muted:rgba(240,237,232,0.45); --muted2:rgba(240,237,232,0.2);
+  --accent:#E8D9C0; --adim:rgba(232,217,192,0.12); --adim2:rgba(232,217,192,0.05);
+  --green:#4CAF82; --red:#E05C5C;
+  --r:10px; --rs:6px;
+}
+body { font-family:'Sora',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+.page { display:none; min-height:100vh; }
+.page.active { display:flex; flex-direction:column; }
+
+/* BUTTONS */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:11px 24px; border-radius:var(--rs); font-family:'Sora',sans-serif;
+  font-size:0.82rem; font-weight:500; cursor:pointer; border:none;
+  transition:all 0.18s ease; letter-spacing:0.03em; white-space:nowrap;
+}
+.btn-p { background:var(--accent); color:#0D0D0D; }
+.btn-p:hover { background:#fff; transform:translateY(-1px); }
+.btn-g { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-g:hover { border-color:var(--bh); color:var(--text); }
+.btn-sm { padding:7px 16px; font-size:0.76rem; }
+
+/* TOAST */
+#toast {
+  position:fixed; bottom:28px; right:28px; background:var(--surface2); color:var(--text);
+  padding:11px 20px; border-radius:var(--rs); font-size:0.81rem; z-index:9999;
+  border:1px solid var(--border); transform:translateY(16px); opacity:0;
+  transition:all 0.22s ease; pointer-events:none; box-shadow:0 8px 32px rgba(0,0,0,0.45);
+}
+#toast.show { transform:translateY(0); opacity:1; }
+#toast.ok  { border-color:rgba(76,175,130,0.35); }
+#toast.err { border-color:rgba(224,92,92,0.35); }
+
+/* MODALS */
+.modal-bg {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,0.72); z-index:500;
+  align-items:center; justify-content:center; backdrop-filter:blur(6px);
+}
+.modal-bg.open { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r);
+  padding:40px; max-width:460px; width:92%; max-height:80vh; overflow-y:auto;
+}
+.modal h3 { font-size:1.05rem; font-weight:500; margin-bottom:16px; }
+.modal p { font-size:0.82rem; color:var(--muted); line-height:1.72; margin-bottom:12px; }
+.mfoot { display:flex; justify-content:flex-end; margin-top:24px; }
+
+/* FORM FIELDS */
+.field { margin-bottom:14px; }
+.field label {
+  display:block; font-size:0.7rem; font-weight:500; letter-spacing:0.08em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:7px;
+}
+.field input {
+  width:100%; padding:11px 13px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--rs); color:var(--text); font-family:'Sora',sans-serif;
+  font-size:0.87rem; outline:none; transition:border-color 0.18s;
+}
+.field input:focus { border-color:rgba(232,217,192,0.5); }
+.field input::placeholder { color:var(--muted2); }
+.field .hint { font-size:0.72rem; color:var(--muted2); margin-top:5px; }
+
+/* ══════════════════════════════════════
+   HOME
+══════════════════════════════════════ */
+#page-home { background:var(--bg); }
+.home-nav {
+  display:flex; align-items:center; justify-content:space-between; padding:26px 56px;
+}
+.logo { font-family:'Lora',serif; font-size:1.3rem; font-weight:400; color:var(--text); }
+.logo span { color:var(--accent); font-style:italic; }
+.nav-btns { display:flex; gap:8px; }
+
+.hero {
+  flex:1; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; text-align:center; padding:60px 24px 40px; position:relative;
+}
+.hero::before {
+  content:''; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:700px; height:420px;
+  background:radial-gradient(ellipse at 50% 0%, rgba(232,217,192,0.065) 0%, transparent 65%);
+  pointer-events:none;
+}
+.hero-pill {
+  display:inline-flex; align-items:center; gap:8px; padding:5px 14px;
+  border:1px solid var(--border); border-radius:20px; font-size:0.71rem;
+  color:var(--muted); letter-spacing:0.09em; text-transform:uppercase; margin-bottom:36px;
+}
+.hero-pill .dot { width:5px; height:5px; border-radius:50%; background:var(--green); flex-shrink:0; }
+.hero h1 {
+  font-family:'Lora',serif; font-size:clamp(2.4rem,5vw,3.8rem); font-weight:400;
+  line-height:1.14; letter-spacing:-0.025em; margin-bottom:20px; max-width:560px;
+}
+.hero h1 em { font-style:italic; color:var(--accent); }
+.hero > p { font-size:0.93rem; color:var(--muted); line-height:1.72; max-width:360px; margin-bottom:40px; }
+.hero-cta { display:flex; gap:10px; }
+
+.steps { padding:56px 56px 76px; border-top:1px solid var(--border); }
+.steps-eye {
+  text-align:center; font-size:0.7rem; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--muted2); margin-bottom:40px;
+}
+.steps-row {
+  display:flex; align-items:flex-start; justify-content:center;
+  max-width:720px; margin:0 auto; position:relative;
+}
+.steps-row::before {
+  content:''; position:absolute; top:17px; left:8%; right:8%;
+  height:1px; background:var(--border); z-index:0;
+}
+.step {
+  flex:1; display:flex; flex-direction:column; align-items:center;
+  text-align:center; padding:0 14px; position:relative; z-index:1;
+}
+.step-n {
+  width:34px; height:34px; border-radius:50%; background:var(--surface2);
+  border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+  font-size:0.76rem; font-weight:600; color:var(--muted); margin-bottom:14px; flex-shrink:0;
+}
+.step:last-child .step-n { border-color:rgba(232,217,192,0.45); color:var(--accent); }
+.step h4 { font-size:0.81rem; font-weight:500; margin-bottom:5px; }
+.step p { font-size:0.74rem; color:var(--muted); line-height:1.5; }
+
+.home-footer {
+  border-top:1px solid var(--border); padding:18px 56px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.home-footer p { font-size:0.74rem; color:var(--muted2); }
+.flinks { display:flex; gap:18px; }
+.flinks a { font-size:0.74rem; color:var(--muted2); cursor:pointer; transition:color 0.15s; }
+.flinks a:hover { color:var(--muted); }
+
+/* ══════════════════════════════════════
+   AUTH
+══════════════════════════════════════ */
+#page-login, #page-signup { align-items:center; justify-content:center; background:var(--bg); }
+.auth-card { width:100%; max-width:360px; padding:24px; margin:auto; }
+.auth-back {
+  display:inline-flex; align-items:center; gap:6px; font-size:0.77rem;
+  color:var(--muted); cursor:pointer; margin-bottom:32px; background:none;
+  border:none; font-family:'Sora',sans-serif; transition:color 0.15s;
+}
+.auth-back:hover { color:var(--text); }
+.auth-logo { font-family:'Lora',serif; font-size:1.15rem; color:var(--text); margin-bottom:28px; display:block; }
+.auth-logo span { color:var(--accent); font-style:italic; }
+.auth-card h2 { font-family:'Lora',serif; font-size:1.5rem; font-weight:400; margin-bottom:5px; }
+.auth-card .sub { font-size:0.81rem; color:var(--muted); margin-bottom:30px; }
+.auth-card .sub a { color:var(--accent); cursor:pointer; }
+.auth-card .sub a:hover { text-decoration:underline; }
+.terms-row { display:flex; align-items:flex-start; gap:10px; margin-bottom:18px; }
+.terms-row input[type="checkbox"] { width:14px; height:14px; min-width:14px; margin-top:2px; accent-color:var(--accent); cursor:pointer; }
+.terms-row label { font-size:0.77rem; color:var(--muted); line-height:1.5; cursor:pointer; }
+.terms-row label a { color:var(--accent); text-decoration:underline; cursor:pointer; }
+.auth-submit { width:100%; padding:12px; font-size:0.87rem; margin-top:2px; }
+
+.divider { display:flex; align-items:center; gap:12px; margin:20px 0; }
+.divider hr { flex:1; border:none; border-top:1px solid var(--border); }
+.divider span { font-size:0.72rem; color:var(--muted2); white-space:nowrap; }
+
+/* ══════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════ */
+#page-dashboard { background:var(--bg); flex-direction:column; }
+.dash-nav {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 36px; border-bottom:1px solid var(--border);
+  background:var(--surface); position:sticky; top:0; z-index:100;
+}
+.dash-logo { font-family:'Lora',serif; font-size:1.1rem; color:var(--text); }
+.dash-logo span { color:var(--accent); font-style:italic; }
+.dash-nav-right { display:flex; align-items:center; gap:14px; }
+.storage-badge {
+  display:flex; align-items:center; gap:8px; font-size:0.73rem; color:var(--muted);
+  padding:5px 12px; border:1px solid var(--border); border-radius:20px;
+}
+.sbar { width:52px; height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
+.sbar-fill { height:100%; background:var(--accent); width:0%; transition:width 0.4s; border-radius:2px; }
+.user-chip { display:flex; align-items:center; gap:8px; }
+.u-ava {
+  width:28px; height:28px; border-radius:50%; background:var(--adim);
+  border:1px solid var(--border); display:flex; align-items:center; justify-content:center;
+  font-size:0.68rem; font-weight:600; color:var(--accent);
+}
+.u-name { font-size:0.8rem; color:var(--muted); }
+.out-btn { font-size:0.74rem; color:var(--muted2); cursor:pointer; background:none; border:none; font-family:'Sora',sans-serif; transition:color 0.15s; }
+.out-btn:hover { color:var(--muted); }
+
+.dash-body { flex:1; padding:40px 36px; max-width:1060px; width:100%; margin:0 auto; }
+.welcome { margin-bottom:36px; }
+.welcome h1 { font-family:'Lora',serif; font-size:1.65rem; font-weight:400; letter-spacing:-0.01em; margin-bottom:4px; }
+.welcome h1 em { font-style:italic; color:var(--accent); }
+.welcome p { font-size:0.81rem; color:var(--muted); }
+
+/* DROP ZONE */
+.drop-zone {
+  border:1.5px dashed var(--border); border-radius:var(--r);
+  padding:44px 24px; text-align:center; margin-bottom:28px;
+  transition:all 0.2s; cursor:pointer; background:var(--adim2); position:relative;
+}
+.drop-zone:hover, .drop-zone.over { border-color:rgba(232,217,192,0.45); background:var(--adim); }
+.drop-zone input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+.dz-icon { font-size:1.8rem; margin-bottom:10px; opacity:0.5; }
+.drop-zone h3 { font-size:0.9rem; font-weight:500; margin-bottom:5px; }
+.drop-zone p { font-size:0.76rem; color:var(--muted); }
+.drop-zone .pick { color:var(--accent); text-decoration:underline; }
+
+/* UPLOAD QUEUE */
+.up-row {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--rs);
+  padding:11px 16px; margin-bottom:8px; display:flex; align-items:center; gap:12px;
+}
+.up-name { font-size:0.8rem; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.up-bar-wrap { flex:1; height:3px; background:var(--border); border-radius:2px; overflow:hidden; max-width:100px; }
+.up-bar { height:100%; background:var(--green); width:0%; transition:width 0.35s; border-radius:2px; }
+.up-pct { font-size:0.73rem; color:var(--muted); min-width:30px; text-align:right; }
+
+/* TOOLBAR */
+.toolbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
+.toolbar-left { display:flex; gap:8px; flex-wrap:wrap; }
+.path-bar { display:flex; align-items:center; gap:5px; font-size:0.78rem; color:var(--muted); }
+.pseg { cursor:pointer; transition:color 0.14s; }
+.pseg:hover { color:var(--text); }
+.pseg.cur { color:var(--text); font-weight:500; cursor:default; }
+.psep { color:var(--muted2); }
+.view-btns { display:flex; gap:2px; }
+.vbtn { background:none; border:1px solid var(--border); padding:6px 10px; border-radius:4px; cursor:pointer; color:var(--muted2); font-size:0.78rem; transition:all 0.14s; }
+.vbtn.on, .vbtn:hover { border-color:var(--bh); color:var(--text); }
+
+/* FILE LIST */
+.expl-head {
+  display:grid; grid-template-columns:1fr 90px 96px 72px;
+  padding:9px 14px; font-size:0.68rem; color:var(--muted2);
+  letter-spacing:0.08em; text-transform:uppercase; border-bottom:1px solid var(--border);
+}
+.file-row {
+  display:grid; grid-template-columns:1fr 90px 96px 72px;
+  padding:12px 14px; border-bottom:1px solid var(--border);
+  align-items:center; transition:background 0.12s; cursor:pointer;
+  animation:fadeUp 0.18s ease both;
+}
+.file-row:hover { background:var(--surface2); }
+.file-row:last-child { border-bottom:none; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+.f-name { display:flex; align-items:center; gap:9px; font-size:0.83rem; }
+.f-ico { font-size:1rem; flex-shrink:0; width:20px; text-align:center; }
+.f-size { font-size:0.76rem; color:var(--muted); }
+.f-date { font-size:0.76rem; color:var(--muted); }
+.f-acts { display:flex; gap:4px; justify-content:flex-end; }
+.fact { background:none; border:none; color:var(--muted2); cursor:pointer; padding:4px 7px; border-radius:4px; font-size:0.76rem; transition:all 0.14s; font-family:'Sora',sans-serif; }
+.fact:hover { color:var(--text); background:var(--surface2); }
+.fact.del:hover { color:var(--red); }
+
+/* GRID VIEW */
+.grid-view { display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr)); gap:10px; }
+.gi {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--rs);
+  padding:18px 12px; text-align:center; cursor:pointer; transition:all 0.14s;
+  position:relative; animation:fadeUp 0.18s ease both;
+}
+.gi:hover { border-color:var(--bh); background:var(--surface2); }
+.gi-ico { font-size:1.9rem; margin-bottom:7px; }
+.gi-name { font-size:0.74rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+.gi-sz { font-size:0.68rem; color:var(--muted2); margin-top:3px; }
+.gi-del { position:absolute; top:5px; right:5px; background:none; border:none; color:var(--muted2); cursor:pointer; font-size:0.68rem; padding:2px 5px; border-radius:3px; opacity:0; transition:opacity 0.14s; }
+.gi:hover .gi-del { opacity:1; }
+.gi-del:hover { color:var(--red); }
+
+/* EMPTY */
+.empty { text-align:center; padding:60px 20px; color:var(--muted2); }
+.empty .e-ico { font-size:2.2rem; margin-bottom:11px; opacity:0.35; }
+.empty p { font-size:0.81rem; }
+
+/* LOADING */
+.loading { text-align:center; padding:60px 20px; color:var(--muted2); font-size:0.83rem; }
+
+@media(max-width:600px){
+  .home-nav,.home-footer{padding:20px 22px;}
+  .steps{padding:40px 22px 60px;}
+  .steps-row{flex-direction:column;gap:24px;}
+  .steps-row::before{display:none;}
+  .home-footer{flex-direction:column;gap:10px;text-align:center;}
+  .dash-nav{padding:14px 18px;}
+  .storage-badge{display:none;}
+  .dash-body{padding:24px 18px;}
+  .expl-head,.file-row{grid-template-columns:1fr 70px 56px;}
+  .expl-head .hdate,.f-date{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- MODAL: TERMOS -->
+<div class="modal-bg" id="m-terms">
+  <div class="modal">
+    <h3>Termos de Uso</h3>
+    <p><strong>1. Uso adequado</strong><br>O MyPendrive é um serviço de armazenamento pessoal. Você concorda em não armazenar conteúdo ilegal, malicioso ou que viole direitos de terceiros.</p>
+    <p><strong>2. Responsabilidade</strong><br>Você é responsável pelos arquivos armazenados. Guarde sua senha com segurança.</p>
+    <p><strong>3. Disponibilidade</strong><br>Buscamos alta disponibilidade, mas recomendamos manter cópias locais de arquivos críticos.</p>
+    <p><strong>4. Cancelamento</strong><br>Você pode excluir sua conta a qualquer momento. Os dados são removidos em 30 dias.</p>
+    <div class="mfoot"><button class="btn btn-g btn-sm" onclick="cm('m-terms')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- MODAL: PRIVACIDADE -->
+<div class="modal-bg" id="m-priv">
+  <div class="modal">
+    <h3>Política de Privacidade</h3>
+    <p><strong>O que coletamos</strong><br>Coletamos nick, e-mail (apenas para recuperação de senha) e metadados dos arquivos. Não lemos o conteúdo dos seus arquivos.</p>
+    <p><strong>Como usamos</strong><br>Seus dados são usados exclusivamente para operar o serviço. Não os vendemos ou compartilhamos com terceiros.</p>
+    <p><strong>Segurança</strong><br>Arquivos armazenados com criptografia. Acesso sempre autenticado.</p>
+    <p><strong>Seus direitos</strong><br>Solicite exportação ou exclusão de seus dados a qualquer momento.</p>
+    <div class="mfoot"><button class="btn btn-g btn-sm" onclick="cm('m-priv')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- MODAL: NOVA PASTA -->
+<div class="modal-bg" id="m-folder">
+  <div class="modal" style="max-width:320px;padding:30px;">
+    <h3>Nova pasta</h3>
+    <div class="field" style="margin-top:14px;">
+      <label>Nome da pasta</label>
+      <input type="text" id="fi-folder" placeholder="ex: Documentos" onkeydown="if(event.key==='Enter')mkFolder()">
+    </div>
+    <div class="mfoot" style="gap:8px;">
+      <button class="btn btn-g btn-sm" onclick="cm('m-folder')">Cancelar</button>
+      <button class="btn btn-p btn-sm" onclick="mkFolder()">Criar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     HOME
+══════════════════════════════════════ -->
+<div id="page-home" class="page active">
+  <nav class="home-nav">
+    <div class="logo">My<span>Pendrive</span></div>
+    <div class="nav-btns">
+      <button class="btn btn-g btn-sm" onclick="go('login')">Entrar</button>
+      <button class="btn btn-p btn-sm" onclick="go('signup')">Criar conta</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-pill"><span class="dot"></span>Armazenamento simples e seguro</div>
+    <h1>Seus arquivos,<br>em <em>qualquer lugar.</em></h1>
+    <p>Suba qualquer arquivo, organize em pastas e acesse de qualquer dispositivo. Sem complicação.</p>
+    <div class="hero-cta">
+      <button class="btn btn-p" onclick="go('signup')">Começar grátis</button>
+      <button class="btn btn-g" onclick="go('login')">Já tenho conta</button>
+    </div>
+  </section>
+
+  <section class="steps">
+    <p class="steps-eye">Como funciona</p>
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-n">1</div>
+        <h4>Crie sua conta</h4>
+        <p>Nick e senha. Menos de 30 segundos.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <h4>Suba seus arquivos</h4>
+        <p>Arraste ou escolha do seu dispositivo.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <h4>Acesse em outro lugar</h4>
+        <p>Faça login de qualquer dispositivo.</p>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <h4>Baixe quando quiser</h4>
+        <p>Seus arquivos sempre disponíveis.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="home-footer">
+    <p>© 2025 MyPendrive</p>
+    <div class="flinks">
+      <a onclick="om('m-terms')">Termos de uso</a>
+      <a onclick="om('m-priv')">Privacidade</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════
+     LOGIN
+══════════════════════════════════════ -->
+<div id="page-login" class="page">
+  <div class="auth-card">
+    <button class="auth-back" onclick="go('home')">← Voltar</button>
+    <span class="auth-logo">My<span>Pendrive</span></span>
+    <h2>Bem-vindo de volta</h2>
+    <p class="sub">Sem conta? <a onclick="go('signup')">Criar agora</a></p>
+    <div class="field">
+      <label>Nick</label>
+      <input type="text" id="li-nick" placeholder="seu_nick" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="li-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-p auth-submit" onclick="doLogin()" id="li-btn">Entrar</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     CADASTRO
+══════════════════════════════════════ -->
+<div id="page-signup" class="page">
+  <div class="auth-card">
+    <button class="auth-back" onclick="go('home')">← Voltar</button>
+    <span class="auth-logo">My<span>Pendrive</span></span>
+    <h2>Criar conta</h2>
+    <p class="sub">Já tem conta? <a onclick="go('login')">Entrar</a></p>
+
+    <div class="field">
+      <label>Nick (usado para login)</label>
+      <input type="text" id="su-nick" placeholder="seu_nick">
+      <div class="hint">Só letras, números e _ (sem espaços)</div>
+    </div>
+    <div class="field">
+      <label>Senha</label>
+      <input type="password" id="su-pass" placeholder="Mínimo 6 caracteres">
+    </div>
+
+    <div class="divider">
+      <hr><span>e-mail só para recuperar senha</span><hr>
+    </div>
+
+    <div class="field">
+      <label>E-mail (opcional, mas recomendado)</label>
+      <input type="email" id="su-email" placeholder="seu@email.com">
+      <div class="hint">Usado apenas se você esquecer a senha</div>
+    </div>
+
+    <div class="terms-row">
+      <input type="checkbox" id="tcb">
+      <label for="tcb">Concordo com os <a onclick="om('m-terms')">Termos de Uso</a> e a <a onclick="om('m-priv')">Política de Privacidade</a></label>
+    </div>
+    <button class="btn btn-p auth-submit" onclick="doSignup()" id="su-btn">Criar conta grátis</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DASHBOARD
+══════════════════════════════════════ -->
+<div id="page-dashboard" class="page">
+  <nav class="dash-nav">
+    <div class="dash-logo">My<span>Pendrive</span></div>
+    <div class="dash-nav-right">
+      <div class="storage-badge">
+        <span id="s-used">0 B</span>
+        <span style="color:var(--muted2)">/ 1 GB</span>
+        <div class="sbar"><div class="sbar-fill" id="s-bar"></div></div>
+      </div>
+      <div class="user-chip">
+        <div class="u-ava" id="d-ava">?</div>
+        <span class="u-name" id="d-name">—</span>
+      </div>
+      <button class="out-btn" onclick="doLogout()">Sair</button>
+    </div>
+  </nav>
+
+  <div class="dash-body">
+    <div class="welcome">
+      <h1>Olá, <em id="w-name">—</em></h1>
+      <p id="w-sub">Carregando seus arquivos...</p>
+    </div>
+
+    <div class="drop-zone" id="dz">
+      <input type="file" id="fi" multiple onchange="handleFiles(this.files)">
+      <div class="dz-icon">↑</div>
+      <h3>Arraste arquivos aqui</h3>
+      <p>ou <span class="pick">escolha do dispositivo</span> — qualquer formato aceito</p>
+    </div>
+
+    <div id="up-queue"></div>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="btn btn-g btn-sm" onclick="om('m-folder')">📁 Nova pasta</button>
+        <button class="btn btn-g btn-sm" onclick="document.getElementById('fi').click()">↑ Enviar arquivo</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="path-bar" id="pb"></div>
+        <div class="view-btns">
+          <button class="vbtn on" id="vl" onclick="setView('list')" title="Lista">☰</button>
+          <button class="vbtn" id="vg" onclick="setView('grid')" title="Grade">⊞</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="expl"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+// ─── SUPABASE INIT ────────────────────────────────────
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY)
+
+// ─── STATE ────────────────────────────────────────────
+let currentUser = null   // { id, nick }
+let path = []            // pasta atual ex: ['Fotos', 'Viagem']
+let view = 'list'
+let cachedFiles = []     // arquivos da pasta atual
+let cachedFolders = []   // pastas da pasta atual
+
+// ─── NAVIGATION ──────────────────────────────────────
+function go(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'))
+  document.getElementById('page-' + p).classList.add('active')
+  window.scrollTo(0, 0)
+}
+
+// ─── MODALS ──────────────────────────────────────────
+function om(id) { document.getElementById(id).classList.add('open') }
+function cm(id) { document.getElementById(id).classList.remove('open') }
+document.querySelectorAll('.modal-bg').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open') })
+})
+
+// ─── TOAST ───────────────────────────────────────────
+let _t
+function toast(msg, type = '') {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.className = 'show' + (type ? ' ' + type : '')
+  clearTimeout(_t)
+  _t = setTimeout(() => el.className = '', 2800)
+}
+
+// ─── AUTH ─────────────────────────────────────────────
+
+// LOGIN — nick + senha
+// O Supabase usa e-mail para autenticar, então internamente
+// guardamos o nick como "nick@mypendrive.local" para funcionar
+async function doLogin() {
+  const nick = v('li-nick').toLowerCase().trim()
+  const pass = v('li-pass')
+  if (!nick || !pass) { toast('Preencha nick e senha.', 'err'); return }
+
+  setBtnLoading('li-btn', true)
+  const fakeEmail = nick + '@mypendrive.local'
+  const { data, error } = await supa.auth.signInWithPassword({ email: fakeEmail, password: pass })
+
+  if (error) {
+    // Tenta com e-mail real se o usuário digitou o próprio e-mail no campo nick
+    if (nick.includes('@')) {
+      const { data: d2, error: e2 } = await supa.auth.signInWithPassword({ email: nick, password: pass })
+      if (e2) { toast('Nick ou senha incorretos.', 'err'); setBtnLoading('li-btn', false); return }
+      await enterDashboard(d2.user)
+    } else {
+      toast('Nick ou senha incorretos.', 'err')
+      setBtnLoading('li-btn', false)
+    }
+    return
+  }
+  await enterDashboard(data.user)
+  setBtnLoading('li-btn', false)
+}
+
+// CADASTRO — nick + senha + e-mail opcional
+async function doSignup() {
+  const nick  = v('su-nick').toLowerCase().trim()
+  const pass  = v('su-pass')
+  const email = v('su-email')
+  const ok    = document.getElementById('tcb').checked
+
+  if (!nick || !pass)  { toast('Preencha nick e senha.', 'err'); return }
+  if (!/^[a-z0-9_]+$/.test(nick)) { toast('Nick só pode ter letras, números e _.', 'err'); return }
+  if (pass.length < 6) { toast('Senha mínima: 6 caracteres.', 'err'); return }
+  if (!ok) { toast('Aceite os termos para continuar.', 'err'); return }
+
+  setBtnLoading('su-btn', true)
+
+  // Usa e-mail real se fornecido, senão usa nick@mypendrive.local
+  const authEmail = email || (nick + '@mypendrive.local')
+
+  const { data, error } = await supa.auth.signUp({
+    email: authEmail,
+    password: pass,
+    options: {
+      data: { nick }   // salva o nick nos metadados do usuário
+    }
+  })
+
+  if (error) {
+    if (error.message.includes('already registered')) {
+      toast('Esse nick ou e-mail já existe.', 'err')
+    } else {
+      toast('Erro: ' + error.message, 'err')
+    }
+    setBtnLoading('su-btn', false)
+    return
+  }
+
+  // Cria registro na tabela profiles
+  if (data.user) {
+    await supa.from('profiles').upsert({ id: data.user.id, nick, email: email || null })
+    await enterDashboard(data.user)
+  } else {
+    toast('Conta criada! Verifique seu e-mail para confirmar.', 'ok')
+    go('login')
+  }
+  setBtnLoading('su-btn', false)
+}
+
+async function doLogout() {
+  await supa.auth.signOut()
+  currentUser = null
+  path = []
+  cachedFiles = []
+  cachedFolders = []
+  go('home')
+  toast('Até logo!')
+}
+
+async function enterDashboard(supaUser) {
+  // Busca nick do usuário
+  const nick = supaUser.user_metadata?.nick || supaUser.email.replace('@mypendrive.local', '')
+  currentUser = { id: supaUser.id, nick }
+
+  const ini = nick.slice(0, 2).toUpperCase()
+  document.getElementById('d-ava').textContent = ini
+  document.getElementById('d-name').textContent = nick
+  document.getElementById('w-name').textContent = nick
+
+  path = []
+  go('dashboard')
+  toast('Bem-vindo, ' + nick + '! 👋', 'ok')
+  await loadFolder()
+}
+
+// ─── SUPABASE STORAGE ─────────────────────────────────
+
+// Caminho no bucket para o usuário atual
+function storagePath(filename) {
+  const folder = path.length ? path.join('/') + '/' : ''
+  return currentUser.id + '/' + folder + (filename || '')
+}
+
+// Lista arquivos e "pastas" da pasta atual
+async function loadFolder() {
+  document.getElementById('expl').innerHTML = '<div class="loading">Carregando...</div>'
+  document.getElementById('w-sub').textContent = 'Carregando seus arquivos...'
+
+  const prefix = storagePath('')
+  const { data, error } = await supa.storage.from('arquivos').list(prefix, {
+    limit: 200, sortBy: { column: 'name', order: 'asc' }
+  })
+
+  if (error) {
+    toast('Erro ao carregar arquivos.', 'err')
+    document.getElementById('expl').innerHTML = '<div class="empty"><div class="e-ico">⚠️</div><p>Erro ao carregar. Verifique sua conexão.</p></div>'
+    return
+  }
+
+  // Separa pastas (placeholder .keep) de arquivos
+  cachedFolders = []
+  cachedFiles = []
+
+  if (data) {
+    data.forEach(item => {
+      if (item.id === null) {
+        // É uma "pasta" (prefixo)
+        cachedFolders.push(item.name)
+      } else if (item.name !== '.keep') {
+        cachedFiles.push({
+          name: item.name,
+          size: item.metadata?.size || 0,
+          date: item.created_at ? new Date(item.created_at).toLocaleDateString('pt-BR') : '—'
+        })
+      }
+    })
+  }
+
+  refreshSub()
+  refreshStorage()
+  render()
+}
+
+// Upload de arquivo
+async function handleFiles(list) {
+  if (!list.length) return
+  Array.from(list).forEach(uploadFile)
+  document.getElementById('fi').value = ''
+}
+
+async function uploadFile(file) {
+  const q = document.getElementById('up-queue')
+  const id = 'u' + Date.now()
+
+  const row = document.createElement('div')
+  row.className = 'up-row'; row.id = id
+  row.innerHTML = `
+    <span class="up-name">${esc(file.name)}</span>
+    <div class="up-bar-wrap"><div class="up-bar" id="b-${id}"></div></div>
+    <span class="up-pct" id="p-${id}">0%</span>`
+  q.prepend(row)
+
+  // Simula progresso visual enquanto faz upload real
+  let pct = 0
+  const iv = setInterval(() => {
+    pct = Math.min(pct + 15, 90)
+    document.getElementById('b-' + id).style.width = pct + '%'
+    document.getElementById('p-' + id).textContent = pct + '%'
+  }, 200)
+
+  const filePath = storagePath(file.name)
+  const { error } = await supa.storage.from('arquivos').upload(filePath, file, { upsert: true })
+
+  clearInterval(iv)
+  document.getElementById('b-' + id).style.width = '100%'
+  document.getElementById('p-' + id).textContent = '100%'
+
+  setTimeout(() => {
+    row.remove()
+    if (error) {
+      toast('Erro ao enviar "' + file.name + '": ' + error.message, 'err')
+    } else {
+      toast('"' + file.name + '" enviado ✓', 'ok')
+      loadFolder()
+    }
+  }, 400)
+}
+
+// Download de arquivo
+async function dlFile(name) {
+  const { data, error } = await supa.storage.from('arquivos').download(storagePath(name))
+  if (error) { toast('Erro ao baixar arquivo.', 'err'); return }
+  const url = URL.createObjectURL(data)
+  const a = document.createElement('a')
+  a.href = url; a.download = name; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// Remover arquivo
+async function rmFile(name) {
+  const { error } = await supa.storage.from('arquivos').remove([storagePath(name)])
+  if (error) { toast('Erro ao remover.', 'err'); return }
+  toast('Arquivo removido.', '')
+  loadFolder()
+}
+
+// Criar pasta (cria um arquivo placeholder .keep dentro)
+async function mkFolder() {
+  const inp = document.getElementById('fi-folder')
+  const name = inp.value.trim()
+  if (!name) { toast('Digite um nome.', 'err'); return }
+  if (!/^[^/\\]+$/.test(name)) { toast('Nome inválido.', 'err'); return }
+
+  const placeholder = currentUser.id + '/' + (path.length ? path.join('/') + '/' : '') + name + '/.keep'
+  const blob = new Blob([''], { type: 'text/plain' })
+  const { error } = await supa.storage.from('arquivos').upload(placeholder, blob, { upsert: true })
+
+  if (error) { toast('Erro ao criar pasta.', 'err'); return }
+  inp.value = ''; cm('m-folder')
+  toast('Pasta "' + name + '" criada ✓', 'ok')
+  loadFolder()
+}
+
+// Remover pasta
+async function rmFolder(name) {
+  const prefix = currentUser.id + '/' + (path.length ? path.join('/') + '/' : '') + name + '/'
+  // Lista tudo dentro e remove
+  const { data } = await supa.storage.from('arquivos').list(prefix, { limit: 1000 })
+  if (data && data.length) {
+    const paths = data.map(f => prefix + f.name)
+    await supa.storage.from('arquivos').remove(paths)
+  }
+  toast('Pasta removida.', '')
+  loadFolder()
+}
+
+function openFolder(name) {
+  path.push(name)
+  loadFolder()
+}
+function navTo(idx) {
+  path = path.slice(0, idx)
+  loadFolder()
+}
+
+// ─── RENDER ──────────────────────────────────────────
+function render() {
+  renderPath()
+  const el = document.getElementById('expl')
+  if (!cachedFiles.length && !cachedFolders.length) {
+    el.innerHTML = `<div class="empty"><div class="e-ico">📂</div><p>Pasta vazia. Arraste arquivos ou crie uma subpasta.</p></div>`
+    return
+  }
+  if (view === 'list') renderList(el)
+  else renderGrid(el)
+}
+
+function renderList(el) {
+  let h = `<div class="expl-head"><div>Nome</div><div>Tamanho</div><div class="hdate">Data</div><div></div></div><div>`
+  cachedFolders.forEach(name => {
+    h += `<div class="file-row" ondblclick="openFolder('${ea(name)}')">
+      <div class="f-name"><span class="f-ico">📁</span><span>${esc(name)}</span></div>
+      <div class="f-size">—</div><div class="f-date">Pasta</div>
+      <div class="f-acts">
+        <button class="fact" onclick="openFolder('${ea(name)}')">Abrir</button>
+        <button class="fact del" onclick="event.stopPropagation();rmFolder('${ea(name)}')">✕</button>
+      </div></div>`
+  })
+  cachedFiles.forEach(f => {
+    h += `<div class="file-row">
+      <div class="f-name"><span class="f-ico">${getIcon(f.name)}</span><span>${esc(f.name)}</span></div>
+      <div class="f-size">${fmtSz(f.size)}</div><div class="f-date">${f.date}</div>
+      <div class="f-acts">
+        <button class="fact" onclick="dlFile('${ea(f.name)}')" title="Baixar">↓</button>
+        <button class="fact del" onclick="rmFile('${ea(f.name)}')" title="Remover">✕</button>
+      </div></div>`
+  })
+  h += `</div>`
+  el.innerHTML = h
+}
+
+function renderGrid(el) {
+  let h = `<div class="grid-view">`
+  cachedFolders.forEach(name => {
+    h += `<div class="gi" ondblclick="openFolder('${ea(name)}')">
+      <button class="gi-del" onclick="event.stopPropagation();rmFolder('${ea(name)}')">✕</button>
+      <div class="gi-ico">📁</div>
+      <div class="gi-name">${esc(name)}</div><div class="gi-sz">Pasta</div></div>`
+  })
+  cachedFiles.forEach(f => {
+    h += `<div class="gi" onclick="dlFile('${ea(f.name)}')">
+      <button class="gi-del" onclick="event.stopPropagation();rmFile('${ea(f.name)}')">✕</button>
+      <div class="gi-ico">${getIcon(f.name)}</div>
+      <div class="gi-name">${esc(f.name)}</div>
+      <div class="gi-sz">${fmtSz(f.size)}</div></div>`
+  })
+  h += `</div>`
+  el.innerHTML = h
+}
+
+function renderPath() {
+  const bar = document.getElementById('pb')
+  let h = `<span class="pseg" onclick="navTo(0)">Meus arquivos</span>`
+  path.forEach((name, i) => {
+    h += `<span class="psep"> / </span>`
+    if (i === path.length - 1) h += `<span class="pseg cur">${esc(name)}</span>`
+    else h += `<span class="pseg" onclick="navTo(${i+1})">${esc(name)}</span>`
+  })
+  bar.innerHTML = h
+}
+
+function setView(m) {
+  view = m
+  document.getElementById('vl').classList.toggle('on', m === 'list')
+  document.getElementById('vg').classList.toggle('on', m === 'grid')
+  render()
+}
+
+// ─── DRAG & DROP ──────────────────────────────────────
+const dz = document.getElementById('dz')
+;['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('over') }))
+;['dragleave','drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('over') }))
+dz.addEventListener('drop', ev => { if (ev.dataTransfer.files.length) handleFiles(ev.dataTransfer.files) })
+
+// ─── STORAGE BAR ─────────────────────────────────────
+function refreshStorage() {
+  const total = cachedFiles.reduce((a, f) => a + (f.size || 0), 0)
+  const MAX = 1 * 1024 * 1024 * 1024
+  document.getElementById('s-used').textContent = fmtSz(total)
+  document.getElementById('s-bar').style.width = Math.min((total/MAX)*100, 100) + '%'
+}
+
+function refreshSub() {
+  const total = cachedFiles.length
+  document.getElementById('w-sub').textContent =
+    total === 0 ? 'Nenhum arquivo nesta pasta. Faça um upload!' :
+    total === 1 ? '1 arquivo.' : total + ' arquivos.'
+}
+
+// ─── SESSÃO PERSISTENTE ──────────────────────────────
+// Verifica se o usuário já está logado ao abrir o site
+supa.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    enterDashboard(data.session.user)
+  }
+})
+
+// ─── UTILS ────────────────────────────────────────────
+function v(id) { return document.getElementById(id).value.trim() }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+function ea(s) { return String(s).replace(/'/g,"\\'") }
+
+function setBtnLoading(id, loading) {
+  const btn = document.getElementById(id)
+  btn.disabled = loading
+  btn.textContent = loading ? 'Aguarde...' : (id === 'li-btn' ? 'Entrar' : 'Criar conta grátis')
+}
+
+function fmtSz(b) {
+  if (!b) return '—'
+  if (b < 1024) return b + ' B'
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB'
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB'
+  return (b/1073741824).toFixed(2) + ' GB'
+}
+
+function getIcon(name) {
+  const e = name.split('.').pop().toLowerCase()
+  const m = {
+    pdf:'📄',doc:'📝',docx:'📝',txt:'📝',md:'📝',
+    jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',svg:'🖼',
+    mp4:'🎬',mov:'🎬',avi:'🎬',mkv:'🎬',
+    mp3:'🎵',wav:'🎵',flac:'🎵',
+    zip:'📦',rar:'📦',gz:'📦',
+    xls:'📊',xlsx:'📊',csv:'📊',
+    ppt:'📋',pptx:'📋',
+    js:'⚙',ts:'⚙',html:'⚙',css:'⚙',json:'⚙',py:'⚙',
+  }
+  return m[e] || '📎'
+}
+</script>
+</body>
+</html>
