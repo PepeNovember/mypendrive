@@ -12,12 +12,12 @@
   Linha 1: substitua COLE_SUA_URL_AQUI pela sua Project URL
   Linha 2: substitua COLE_SUA_CHAVE_AQUI pela sua anon/public key
   Exemplo:
-    const SUPA_URL = 'https://ugkgyhdttazpyslaudsg.supabase.co'
-    const SUPA_KEY = 'sb_publishable_MDSzvXmRF7XmjeO0jX8D0Q_Pj-Y98AA'
+    const SUPA_URL = 'https://abcxyz.supabase.co'
+    const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ============================================================ -->
 <script>
-  const SUPA_URL = 'https://ugkgyhdttazpyslaudsg.supabase.co'
-  const SUPA_KEY = 'sb_publishable_MDSzvXmRF7XmjeO0jX8D0Q_Pj-Y98AA'
+  const SUPA_URL = 'COLE_SUA_URL_AQUI'
+  const SUPA_KEY = 'COLE_SUA_CHAVE_AQUI'
 </script>
 <!-- ============================================================ -->
 
@@ -467,7 +467,7 @@ body { font-family:'Sora',sans-serif; background:var(--bg); color:var(--text); m
       <input type="checkbox" id="tcb">
       <label for="tcb">Concordo com os <a onclick="om('m-terms')">Termos de Uso</a> e a <a onclick="om('m-priv')">Política de Privacidade</a></label>
     </div>
-    <button type="button" class="btn btn-p auth-submit" id="su-btn">Criar conta grátis</button>
+    <button class="btn btn-p auth-submit" onclick="doSignup()" id="su-btn">Criar conta grátis</button>
   </div>
 </div>
 
@@ -597,58 +597,42 @@ async function doLogin() {
 
 // CADASTRO — nick + senha + e-mail obrigatório (só para recuperar senha)
 async function doSignup() {
-  if (window.__suBusy) return;          // TRAVA anti spam
-  window.__suBusy = true;
+  const nick  = v('su-nick').toLowerCase().trim()
+  const pass  = v('su-pass')
+  const email = v('su-email')
+  const ok    = document.getElementById('tcb').checked
 
-  setBtnLoading('su-btn', true);
+  if (!nick || !pass || !email) { toast('Preencha todos os campos.', 'err'); return }
+  if (!/^[a-z0-9_]+$/.test(nick)) { toast('Nick só pode ter letras, números e _.', 'err'); return }
+  if (pass.length < 6) { toast('Senha mínima: 6 caracteres.', 'err'); return }
+  if (!email.includes('@')) { toast('E-mail inválido.', 'err'); return }
+  if (!ok) { toast('Aceite os termos para continuar.', 'err'); return }
 
-  try {
-    const nick  = v('su-nick').toLowerCase().trim();
-    const pass  = v('su-pass');
-    const email = v('su-email');
-    const ok    = document.getElementById('tcb').checked;
+  setBtnLoading('su-btn', true)
 
-    if (!nick || !pass || !email) { toast('Preencha todos os campos.', 'err'); return; }
-    if (!/^[a-z0-9_]+$/.test(nick)) { toast('Nick só pode ter letras, números e _.', 'err'); return; }
-    if (pass.length < 6) { toast('Senha mínima: 6 caracteres.', 'err'); return; }
-    if (!email.includes('@')) { toast('E-mail inválido.', 'err'); return; }
-    if (!ok) { toast('Aceite os termos para continuar.', 'err'); return; }
+  const { data: existing } = await supa.from('profiles').select('nick').eq('nick', nick).maybeSingle()
+  if (existing) { toast('Esse nick já está em uso. Escolha outro.', 'err'); setBtnLoading('su-btn', false); return }
 
-    const { data: existing } = await supa
-      .from('profiles')
-      .select('nick')
-      .eq('nick', nick)
-      .maybeSingle();
+  const { data, error } = await supa.auth.signUp({
+    email: email,
+    password: pass,
+    options: { data: { nick } }
+  })
 
-    if (existing) { toast('Esse nick já está em uso. Escolha outro.', 'err'); return; }
-
-    const { data, error } = await supa.auth.signUp({
-      email,
-      password: pass,
-      options: { data: { nick } }
-    });
-
-    if (error) {
-      toast(
-        (error.message || '').toLowerCase().includes('already registered')
-          ? 'Esse e-mail já tem uma conta.'
-          : 'Erro: ' + error.message,
-        'err'
-      );
-      return;
-    }
-
-    if (data.user) {
-      await supa.from('profiles').upsert({ id: data.user.id, nick, email });
-      await enterDashboard(data.user);
-    } else {
-      toast('Verifique seu e-mail para confirmar a conta.', 'ok');
-      go('login');
-    }
-  } finally {
-    window.__suBusy = false;            // DESTRAVA
-    setBtnLoading('su-btn', false);     // SEMPRE volta o botão
+  if (error) {
+    toast(error.message.includes('already registered') ? 'Esse e-mail já tem uma conta.' : 'Erro: ' + error.message, 'err')
+    setBtnLoading('su-btn', false)
+    return
   }
+
+  if (data.user) {
+    await supa.from('profiles').upsert({ id: data.user.id, nick, email })
+    await enterDashboard(data.user)
+  } else {
+    toast('Verifique seu e-mail para confirmar a conta.', 'ok')
+    go('login')
+  }
+  setBtnLoading('su-btn', false)
 }
 
 async function doLogout() {
@@ -962,10 +946,6 @@ function getIcon(name) {
   }
   return m[e] || '📎'
 }
-  document.getElementById('su-btn').addEventListener('click', (e) => {
-  e.preventDefault()
-  doSignup()
-})
 </script>
 </body>
 </html>
